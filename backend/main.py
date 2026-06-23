@@ -1,7 +1,9 @@
 """
 FastAPI 入口 —— 提供 HTTP API
 """
+import os
 import threading
+from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +16,25 @@ from crawlers import weibo, zhihu, bilibili, baidu
 from analyzer import analyze_sentiment
 
 
-app = FastAPI(title="舆情监控 API", version="1.0.0")
+# ==================== 生命周期 ====================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用启动/关闭钩子(FastAPI 0.110+ 推荐)"""
+    print("=== 应用启动 ===", flush=True)
+    db.init_db()
+    start_scheduler()
+    print(f"\n{'='*60}", flush=True)
+    print(f"  舆情监控服务已启动", flush=True)
+    port = int(os.getenv("PORT", "8000"))
+    print(f"  监听: 0.0.0.0:{port}", flush=True)
+    print(f"  数据: {config.DB_PATH}", flush=True)
+    print(f"{'='*60}\n", flush=True)
+    yield
+    print("=== 应用关闭 ===", flush=True)
+    stop_scheduler()
+
+
+app = FastAPI(title="舆情监控 API", version="1.0.0", lifespan=lifespan)
 
 # 跨域(允许本地前端访问)
 app.add_middleware(
@@ -23,23 +43,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ==================== 启动 ====================
-@app.on_event("startup")
-def on_startup():
-    db.init_db()
-    start_scheduler()
-    print(f"\n{'='*60}")
-    print(f"  舆情监控服务已启动")
-    print(f"  监听: http://{config.HOST}:{config.PORT}")
-    print(f"  数据: {config.DB_PATH}")
-    print(f"{'='*60}\n")
-
-
-@app.on_event("shutdown")
-def on_shutdown():
-    stop_scheduler()
 
 
 # ==================== Pydantic 模型 ====================
@@ -172,7 +175,8 @@ if __name__ == "__main__":
     import os
     import uvicorn
     # 部署平台会注入 PORT 环境变量(必须用 0.0.0.0 让外部能访问)
-    port = int(os.getenv("PORT", config.PORT))
-    host = os.getenv("HOST", "0.0.0.0" if os.getenv("RENDER") or os.getenv("RAILWAY_ENVIRONMENT") else config.HOST)
-    print(f"启动服务: http://{host}:{port}")
-    uvicorn.run("main:app", host=host, port=port, reload=False)
+    port = int(os.getenv("PORT", "8000"))
+    # 部署到云平台必须 0.0.0.0,否则外部访问不到
+    host = "0.0.0.0" if os.getenv("RENDER") or os.getenv("PORT") else "127.0.0.1"
+    print(f"=== 启动服务: host={host}, port={port} ===", flush=True)
+    uvicorn.run("main:app", host=host, port=port, reload=False, log_level="info")
