@@ -277,7 +277,7 @@ const { createApp, ref, onMounted, computed, watch, nextTick } = Vue;
 
 // API 地址 —— 部署到 Vercel 后改成你的 Render 后端 URL
 // 例如: const DEPLOYED_API = "https://opinion-backend.onrender.com";
-const DEPLOYED_API = "";  // 留空表示用本地
+const DEPLOYED_API = "https://opinion-backend-ghcm.onrender.com";
 const API = (() => {
   if (DEPLOYED_API) return DEPLOYED_API;
   const host = window.location.hostname;
