@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>舆情监控 · 个人版</title>
+  <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.js"></script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f7fa; color: #2c3e50; line-height: 1.6;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white; padding: 24px 32px; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-bottom: 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header h1 { font-size: 24px; font-weight: 600; }
+    header .subtitle { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+    header .actions button {
+      background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);
+      padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-left: 8px; font-size: 13px;
+      transition: all 0.2s;
+    }
+    header .actions button:hover { background: rgba(255,255,255,0.3); }
+
+    .card {
+      background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .card h2 { font-size: 16px; margin-bottom: 16px; color: #303133; }
+
+    /* 统计卡片 */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+    .stat-item {
+      background: white; padding: 20px; border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-left: 4px solid #667eea;
+    }
+    .stat-item .label { color: #909399; font-size: 13px; margin-bottom: 8px; }
+    .stat-item .value { font-size: 28px; font-weight: 600; color: #303133; }
+    .stat-item .delta { font-size: 12px; color: #67c23a; margin-top: 4px; }
+    .stat-item.green { border-left-color: #67c23a; }
+    .stat-item.red { border-left-color: #f56c6c; }
+    .stat-item.orange { border-left-color: #e6a23c; }
+    .stat-item.purple { border-left-color: #9b59b6; }
+
+    /* 关键词管理 */
+    .keyword-input { display: flex; gap: 8px; margin-bottom: 16px; }
+    .keyword-input input {
+      flex: 1; padding: 10px 14px; border: 1px solid #dcdfe6; border-radius: 6px;
+      font-size: 14px; outline: none; transition: border-color 0.2s;
+    }
+    .keyword-input input:focus { border-color: #667eea; }
+    .btn {
+      padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+      font-size: 14px; transition: all 0.2s; font-weight: 500;
+    }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5568d3; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-danger { background: #f56c6c; color: white; }
+    .btn-danger:hover { background: #dd6161; }
+    .btn-secondary { background: #f0f2f5; color: #606266; }
+    .btn-secondary:hover { background: #e6e8eb; }
+
+    .keyword-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .keyword-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #f0f2f5; padding: 6px 12px; border-radius: 16px;
+      font-size: 13px; color: #606266;
+    }
+    .keyword-tag.active { background: #ecf5ff; color: #409eff; }
+    .keyword-tag.disabled { opacity: 0.5; }
+    .keyword-tag .toggle, .keyword-tag .delete {
+      cursor: pointer; padding: 0 4px; user-select: none;
+    }
+    .keyword-tag .toggle:hover { color: #409eff; }
+    .keyword-tag .delete:hover { color: #f56c6c; }
+
+    /* 筛选器 */
+    .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .filters select, .filters input {
+      padding: 6px 12px; border: 1px solid #dcdfe6; border-radius: 6px;
+      font-size: 13px; outline: none; background: white;
+    }
+
+    /* 帖子列表 */
+    .post-list { display: flex; flex-direction: column; gap: 12px; }
+    .post-item {
+      border: 1px solid #ebeef5; border-radius: 8px; padding: 16px;
+      transition: all 0.2s; cursor: pointer;
+    }
+    .post-item:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.1); }
+    .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .post-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .platform-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 500;
+    }
+    .platform-weibo { background: #ffeded; color: #e6162d; }
+    .platform-zhihu { background: #e6f0ff; color: #056de8; }
+    .platform-bilibili, .platform-bilibili_comment, .platform-bilibili_baidu {
+      background: #f0e6ff; color: #fb7299;
+    }
+    .platform-xhs, .platform-xhs_baidu { background: #ffe6ec; color: #ff2442; }
+    .platform-douyin_baidu { background: #000; color: #fff; }
+    .platform-weibo_baidu { background: #ffeded; color: #e6162d; }
+    .platform-zhihu_baidu { background: #e6f0ff; color: #056de8; }
+
+    .sentiment-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 500;
+    }
+    .sentiment-正面 { background: #f0f9eb; color: #67c23a; }
+    .sentiment-负面 { background: #fef0f0; color: #f56c6c; }
+    .sentiment-中性 { background: #f4f4f5; color: #909399; }
+
+    .post-title { font-size: 15px; font-weight: 500; color: #303133; margin-bottom: 6px; }
+    .post-content { font-size: 13px; color: #606266; line-height: 1.6; }
+    .post-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 12px; color: #909399; }
+    .post-footer a { color: #667eea; text-decoration: none; }
+    .post-footer a:hover { text-decoration: underline; }
+
+    .empty { text-align: center; padding: 40px; color: #909399; font-size: 14px; }
+    .loading { text-align: center; padding: 20px; color: #909399; }
+
+    /* 图表 */
+    .chart { height: 300px; }
+
+    .toast {
+      position: fixed; top: 24px; right: 24px; padding: 12px 20px;
+      background: #67c23a; color: white; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999;
+      font-size: 14px; animation: slideIn 0.3s;
+    }
+    .toast.error { background: #f56c6c; }
+    @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+
+    @media (max-width: 768px) {
+      .container { padding: 12px; }
+      header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="app" class="container">
+  <header>
+    <div>
+      <h1>🔍 舆情监控 · 个人版</h1>
+      <div class="subtitle">微博 · 知乎 · B站 · 小红书 · 抖音 — 实时追踪关键词舆情</div>
+    </div>
+    <div class="actions">
+      <button @click="crawlNow">立即抓取</button>
+      <button @click="loadData">刷新</button>
+    </div>
+  </header>
+
+  <!-- 统计卡片 -->
+  <div class="stats">
+    <div class="stat-item">
+      <div class="label">总帖数</div>
+      <div class="value">{{ stats.total || 0 }}</div>
+      <div class="delta">累计</div>
+    </div>
+    <div class="stat-item green">
+      <div class="label">今日新增</div>
+      <div class="value">{{ stats.today || 0 }}</div>
+      <div class="delta">条</div>
+    </div>
+    <div class="stat-item orange">
+      <div class="label">本周</div>
+      <div class="value">{{ stats.week || 0 }}</div>
+      <div class="delta">条</div>
+    </div>
+    <div class="stat-item red">
+      <div class="label">负面</div>
+      <div class="value">{{ stats.by_sentiment?.['负面'] || 0 }}</div>
+      <div class="delta">需关注</div>
+    </div>
+    <div class="stat-item purple">
+      <div class="label">正面</div>
+      <div class="value">{{ stats.by_sentiment?.['正面'] || 0 }}</div>
+      <div class="delta">好评</div>
+    </div>
+  </div>
+
+  <!-- 关键词管理 -->
+  <div class="card">
+    <h2>📌 关键词管理</h2>
+    <div class="keyword-input">
+      <input v-model="newKeyword" @keyup.enter="addKeyword" placeholder="输入关键词,如:小米汽车、XX 品牌、某个事件...">
+      <button class="btn btn-primary" @click="addKeyword">添加</button>
+    </div>
+    <div class="keyword-list" v-if="keywords.length">
+      <div v-for="kw in keywords" :key="kw.id"
+           :class="['keyword-tag', kw.enabled ? 'active' : 'disabled']">
+        <span>{{ kw.word }}</span>
+        <span class="toggle" @click="toggleKeyword(kw)">{{ kw.enabled ? '✓' : '○' }}</span>
+        <span class="delete" @click="deleteKeyword(kw)">×</span>
+      </div>
+    </div>
+    <div v-else class="empty">还没有关键词,先添加一个吧</div>
+  </div>
+
+  <!-- 趋势图 -->
+  <div class="card">
+    <h2>📈 近 7 天情感趋势</h2>
+    <div ref="trendChart" class="chart"></div>
+  </div>
+
+  <!-- 帖子列表 -->
+  <div class="card">
+    <h2>📰 最新帖子</h2>
+    <div class="filters">
+      <select v-model="filterPlatform" @change="loadPosts">
+        <option value="">全部平台</option>
+        <option value="weibo">微博</option>
+        <option value="weibo_baidu">微博(百度)</option>
+        <option value="zhihu">知乎</option>
+        <option value="zhihu_baidu">知乎(百度)</option>
+        <option value="bilibili">B站视频</option>
+        <option value="bilibili_comment">B站评论</option>
+        <option value="xhs_baidu">小红书(百度)</option>
+        <option value="douyin_baidu">抖音(百度)</option>
+      </select>
+      <select v-model="filterSentiment" @change="loadPosts">
+        <option value="">全部情感</option>
+        <option value="正面">正面</option>
+        <option value="负面">负面</option>
+        <option value="中性">中性</option>
+      </select>
+      <select v-model="filterKeyword" @change="loadPosts">
+        <option value="">全部关键词</option>
+        <option v-for="kw in keywords" :key="kw.id" :value="kw.id">{{ kw.word }}</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" @click="loadPosts">应用筛选</button>
+    </div>
+
+    <div class="post-list" style="margin-top: 16px;" v-if="posts.length">
+      <div v-for="post in posts" :key="post.id" class="post-item" @click="openPost(post)">
+        <div class="post-header">
+          <div class="post-meta">
+            <span :class="['platform-tag', 'platform-' + post.platform]">{{ platformLabel(post.platform) }}</span>
+            <span v-if="post.keyword" style="color:#909399;font-size:12px;"># {{ post.keyword }}</span>
+          </div>
+          <span v-if="post.sentiment" :class="['sentiment-tag', 'sentiment-' + post.sentiment]">
+            {{ post.sentiment }} {{ post.sentiment_score ? '(' + (post.sentiment_score*100).toFixed(0) + '%)' : '' }}
+          </span>
+        </div>
+        <div v-if="post.title" class="post-title">{{ post.title }}</div>
+        <div class="post-content">{{ post.content || '(无内容)' }}</div>
+        <div class="post-footer">
+          <span>
+            {{ post.author ? '👤 ' + post.author : '' }}
+            <span v-if="post.likes" style="margin-left: 12px;">👍 {{ post.likes }}</span>
+            <span v-if="post.comments" style="margin-left: 12px;">💬 {{ post.comments }}</span>
+          </span>
+          <a :href="post.url" target="_blank" rel="noopener" @click.stop>查看原文 →</a>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="!loading" class="empty">暂无数据,先添加关键词并点击"立即抓取"吧</div>
+    <div v-if="loading" class="loading">加载中...</div>
+  </div>
+
+  <div v-if="toast" :class="['toast', toast.type === 'error' ? 'error' : '']">{{ toast.msg }}</div>
+</div>
+
+<script>
+const { createApp, ref, onMounted, computed, watch, nextTick } = Vue;
+
+// API 地址 —— 部署到 Vercel 后改成你的 Render 后端 URL
+// 例如: const DEPLOYED_API = "https://opinion-backend.onrender.com";
+const DEPLOYED_API = "https://opinion-backend-ghcm.onrender.com";  // Render 后端 URL
+const API = (() => {
+  if (DEPLOYED_API) return DEPLOYED_API;
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") {
+    return "http://127.0.0.1:8000";
+  }
+  // 部署到 Vercel 但没填 DEPLOYED_API,提示用户
+  return "https://YOUR-BACKEND.onrender.com";
+})();
+
+createApp({
+  setup() {
+    const keywords = ref([]);
+    const posts = ref([]);
+    const stats = ref({});
+    const newKeyword = ref("");
+    const filterPlatform = ref("");
+    const filterSentiment = ref("");
+    const filterKeyword = ref("");
+    const loading = ref(false);
+    const toast = ref(null);
+    const trendChart = ref(null);
+    let chartInstance = null;
+
+    const platformLabels = {
+      weibo: "微博",
+      zhihu: "知乎",
+      bilibili: "B站视频",
+      bilibili_comment: "B站评论",
+      bilibili_baidu: "B站(百度)",
+      xhs: "小红书",
+      xhs_baidu: "小红书(百度)",
+      douyin_baidu: "抖音(百度)",
+      weibo_baidu: "微博(百度)",
+      zhihu_baidu: "知乎(百度)",
+    };
+    const platformLabel = (p) => platformLabels[p] || p;
+
+    const showToast = (msg, type = "success") => {
+      toast.value = { msg, type };
+      setTimeout(() => (toast.value = null), 2500);
+    };
+
+    const loadKeywords = async () => {
+      try {
+        const r = await fetch(`${API}/api/keywords`).then((r) => r.json());
+        keywords.value = r.items || [];
+      } catch (e) {
+        console.error("[loadKeywords]", e);
+        keywords.value = [];
+      }
+    };
+
+    const loadPosts = async () => {
+      loading.value = true;
+      const params = new URLSearchParams();
+      if (filterPlatform.value) params.append("platform", filterPlatform.value);
+      if (filterSentiment.value) params.append("sentiment", filterSentiment.value);
+      if (filterKeyword.value) params.append("keyword_id", filterKeyword.value);
+      params.append("limit", 80);
+      const r = await fetch(`${API}/api/posts?${params}`).then((r) => r.json());
+      posts.value = r.items || [];
+      loading.value = false;
+    };
+
+    const loadStats = async () => {
+      stats.value = await fetch(`${API}/api/stats`).then((r) => r.json());
+    };
+
+    const loadTrend = async () => {
+      const r = await fetch(`${API}/api/trend?days=7`).then((r) => r.json());
+      renderTrendChart(r.items || []);
+    };
+
+    const renderTrendChart = (items) => {
+      if (!trendChart.value) return;
+      if (!chartInstance) chartInstance = echarts.init(trendChart.value);
+      // 整理数据
+      const days = [...new Set(items.map((i) => i.day))].sort();
+      const seriesData = {
+        正面: days.map((d) => items.find((i) => i.day === d && i.sentiment === "正面")?.c || 0),
+        负面: days.map((d) => items.find((i) => i.day === d && i.sentiment === "负面")?.c || 0),
+        中性: days.map((d) => items.find((i) => i.day === d && i.sentiment === "中性")?.c || 0),
+      };
+      chartInstance.setOption({
+        tooltip: { trigger: "axis" },
+        legend: { data: ["正面", "负面", "中性"], top: 0 },
+        grid: { left: 40, right: 20, top: 40, bottom: 30 },
+        xAxis: { type: "category", data: days },
+        yAxis: { type: "value" },
+        series: [
+          { name: "正面", type: "line", smooth: true, data: seriesData["正面"], itemStyle: { color: "#67c23a" } },
+          { name: "负面", type: "line", smooth: true, data: seriesData["负面"], itemStyle: { color: "#f56c6c" } },
+          { name: "中性", type: "line", smooth: true, data: seriesData["中性"], itemStyle: { color: "#909399" } },
+        ],
+      });
+    };
+
+    const loadData = async () => {
+      await Promise.all([loadKeywords(), loadPosts(), loadStats(), loadTrend()]);
+    };
+
+    const addKeyword = async () => {
+      const w = newKeyword.value.trim();
+      if (!w) {
+        showToast("请输入关键词", "error");
+        return;
+      }
+      try {
+        const resp = await fetch(`${API}/api/keywords`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({ word: w }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+          showToast(`添加失败: ${err.detail || resp.status}`, "error");
+          return;
+        }
+        const result = await resp.json();
+        newKeyword.value = "";
+        await loadKeywords();
+        showToast(`已添加: ${result.word}`);
+      } catch (e) {
+        showToast(`网络错误: ${e.message}`, "error");
+        console.error("[addKeyword]", e);
+      }
+    };
+
+    const toggleKeyword = async (kw) => {
+      await fetch(`${API}/api/keywords/${kw.id}/toggle`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !kw.enabled }),
+      });
+      await loadKeywords();
+    };
+
+    const deleteKeyword = async (kw) => {
+      if (!confirm(`确认删除关键词"${kw.word}"?`)) return;
+      await fetch(`${API}/api/keywords/${kw.id}`, { method: "DELETE" });
+      await loadKeywords();
+      showToast("已删除");
+    };
+
+    const crawlNow = async () => {
+      await fetch(`${API}/api/crawl/now`, { method: "POST" });
+      showToast("已开始抓取,约 1-2 分钟后刷新查看");
+      setTimeout(loadData, 60000);
+    };
+
+    const openPost = (post) => {
+      window.open(post.url, "_blank");
+    };
+
+    onMounted(() => {
+      loadData();
+      // 每 60 秒自动刷新
+      setInterval(loadData, 60000);
+      window.addEventListener("resize", () => chartInstance?.resize());
+    });
+
+    return {
+      keywords, posts, stats, newKeyword,
+      filterPlatform, filterSentiment, filterKeyword,
+      loading, toast, trendChart,
+      platformLabel,
+      addKeyword, toggleKeyword, deleteKeyword,
+      loadPosts, crawlNow, loadData, openPost,
+    };
+  },
+}).mount("#app");
+</script>
+</body>
+</html>
